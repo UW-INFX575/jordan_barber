@@ -25,8 +25,8 @@ go_stem = PorterStemmer()
 # create tokenizer using regex \w+ method
 tokenizer = RegexpTokenizer(r'\w+')
 
-dir = "https://s3-us-west-2.amazonaws.com/uspto-patentsclaims/"
-page_id = ["6334220", "6334221", "6334222", "6334223", "6334224", "6334225", "6334226", "6334227", "6334228", "6334229"]
+dir = "insert a directory"
+page_id = ["insert list of page IDs"]
 
 # initilize lists for loop
 all_uni_grams = []
