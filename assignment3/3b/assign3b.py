@@ -27,6 +27,9 @@ go_stem = PorterStemmer()
 # create tokenizer
 tokenizer = RegexpTokenizer(r'[a-z]+')
 
+# create global corpus list
+corpus = []
+
 # creating some functions
 def create_codebook(docs):
     """intakes list of documents and returns a FreqDist object"""
@@ -92,9 +95,6 @@ with open('abstracts2.txt', encoding='utf-8') as f:
             docs[topic_id].append(doc_text)
         except KeyError:
             docs[topic_id] = [doc_text]
-
-# create global corpus list
-corpus = []
 
 # create codebooks for each topic
 topic_freq = {key: create_codebook(docs[key]) for key in docs}
