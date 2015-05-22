@@ -11,6 +11,7 @@ import csv
 import re
 import scipy.stats
 from statistics import mean
+import math
 
 # create stopper for english words
 go_stop = get_stop_words('en')
