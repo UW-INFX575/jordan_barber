@@ -11,36 +11,31 @@ import csv
 import re
 import scipy.stats
 from statistics import mean
+import re
 import math
+import numpy as np
+import time
+from scipy import cluster
+import matplotlib.pylab as plt
 
-# create stopper for english words
-go_stop = get_stop_words('en')
+# create stop list
+go_stop = ["all","just","being","over","both","through","yourselves","its","before","herself","had","should","to","only","under","ours","has","do","them","his","very","they","not","during","now","him","nor","did","this","she","each","further","where","few","because","doing","some","are","our","ourselves","out","what","for","while","does","above","between","t","be","we","who","were","here","hers","by","on","about","of","against","s","or","own","into","yourself","down","your","from","her","their","there","been","whom","too","themselves","was","until","more","himself","that","but","don","with","than","those","he","me","myself","these","up","will","below","can","theirs","my","and","then","is","am","it","an","as","itself","at","have","in","any","if","again","no","when","same","how","other","which","you","after","most","such","why","a","off","i","yours","so","the","having","once"]
 
 # create Porter stemmer
 go_stem = PorterStemmer()
 
-# create tokenizer using regex \w+ method
-tokenizer = RegexpTokenizer(r'\w+')
+# create tokenizer
+tokenizer = RegexpTokenizer(r'[a-z]+')
 
-# create sample documents
-# topic A
-doc_a = "Brocolli is good to eat. My brother likes to eat good brocolli, but not my mother."
-doc_b = "Some health experts suggest that driving may cause increased tension and blood pressure."
-doc_c = "Health professionals say that brocolli is good for your health."
+# create global corpus list
+corpus = []
 
-# topic B
-doc_d = "My mother spends a lot of time driving my brother around to baseball practice."
-doc_f = "I often feel pressure to perform well at school, but my mother never seems to drive my brother to do better."
-
-# compile sample documents into two topics and a corpus
-topic_a = [doc_a, doc_b, doc_c]
-topic_b = [doc_d, doc_f]
-corpus = [doc_a, doc_b, doc_c, doc_d, doc_f]
-
-def create_codebook(tokenlist):
-    """intake a list of documents and create a codebook"""
+# creating some functions
+def create_codebook(docs):
+    """intakes list of documents and returns a FreqDist object"""
+    global corpus
     all_tokens = []
-    for i in tokenlist:
+    for i in docs:
         # convert url to readable raw, lower-case string
         raw = i.lower()
         
@@ -53,50 +48,81 @@ def create_codebook(tokenlist):
         # stem tokens
         stemmed = [go_stem.stem(i) for i in stopped]
         
-        # add to tokens for all documents
+        # add to tokens to total list
         all_tokens = all_tokens + stemmed
+    corpus = corpus + all_tokens
     return nltk.FreqDist(all_tokens)
-
-def cross_entropy(termprob, corpusprob):
-    """calculate cross entropy"""
-    return -(termprob * math.log(corpusprob, 2))
     
-def shannon_entropy(termprob):
-    """calculate shannon entropy"""
-    return -(termprob * math.log(termprob, 2))
+def entropy(topic):
+    """returns entropy of codebook_i"""
+    e = 0
+    for i in topic.keys():
+        e += (topic.freq(i) * np.log2(topic.freq(i)))
+    return -e
 
-# create codebooks for topics A, B, and the corpus codebook
-# includes distribution frequency, phrase counts, etc.
-a_codebook = create_codebook(topic_a)
-b_codebook = create_codebook(topic_b)
-corp_codebook = create_codebook(corpus)
+def cross_entropy(topic_i, topic_j, corp):
+    """returns entropy from topic_i to topic_j"""
+    e = 0
+    start_time = time.time()
+    for word in topic_i.keys():
+        # if word in topic_j.keys():
+        #     e += topic_i.freq(word) * np.log2(topic_j.freq(word))
+        # else:
+        #     e += topic_i.freq(word) * np.log2(corp.freq(word))
+        e += (.99 * topic_i.freq(word) + .01 * corp.freq(word)) * np.log2(.99*(topic_j.freq(word) if word in topic_j.keys() else 0) + (.01 * corp.freq(word)))
+    print("--- %s seconds ---" % (time.time() - start_time))
+    return -e
 
-# calculate shannon entropy for each phrase in topic a
-shannon_topic_a = []
-for i in a_codebook:
-    shannon_topic_a.append(shannon_entropy(a_codebook.freq(i)))
+def cross_entropy(topic_i, topic_j, corp):
+    """returns entropy from topic_i to topic_j"""
+    e = 0
+    for word in topic_i.keys():
+        e += (.99 * topic_i.freq(word) + .01 * corp.freq(word)) * np.log2(.99*(topic_j.freq(word) if word in topic_j.keys() else 0) + (.01 * corp.freq(word)))
+    return -e
 
-# calculate cross entropy for each phrase in topic a
-cross_topic_a = []
-for i in a_codebook:
-    if b_codebook.freq(i) == 0.0:
-        # if term does not exist in topic b, refer to corpus codebook
-        cross_topic_a.append((cross_entropy(a_codebook.freq(i), corp_codebook.freq(i))))
-    else:
-        # refer to topic b codebook
-        cross_topic_a.append((cross_entropy(a_codebook.freq(i), b_codebook.freq(i))))
+# create dicts for opening txt files
+groups = {}
+docs = {}
 
-# average message length within topic a
-avg_msg_within = mean(shannon_topic_a)
+# create topic dict
+with open('groups.txt', 'r') as f:
+    next(f)
+    csv_reader = csv.reader(f, delimiter='\t')
+    for doc_id, topic_id in csv_reader:
+        groups[doc_id] = int(topic_id)
 
-# average message length between topic a to b
-avg_msg_between = mean(cross_topic_a)
+# create docs dict and append text by topic
+with open('abstracts.txt', encoding='utf-8') as f:
+    next(f)
+    csv_reader = csv.reader(f, delimiter='\t')
+    for doc_id2, doc_text in csv_reader:
+        topic_id = groups[doc_id2]
+        try:
+            docs[topic_id].append(doc_text)
+        except KeyError:
+            docs[topic_id] = [doc_text]
 
-# calculate efficiency of communication between topic a to b
-cultural_hole_a_to_b = avg_msg_within / avg_msg_between
+# create codebooks for each topic
+topic_freq = {key: create_codebook(docs[key]) for key in docs}
 
-# cultural hold from reader in topic b to topic a
-cultural_hole_b_to_a = 1 - cultural_hole_a_to_b
+# create seperate corpus codebook
+corpus_freq = nltk.FreqDist(corpus)
 
-# calculate average cultural hole around topic a, n=2
-avg_cultural_hole = cultural_hole_a_to_b / 2
+# calculate entropy
+topic_shannon = {key: entropy(topic_freq[key]) for key in topic_freq}
+
+# create a matrix for jargon distance calculations
+# one cell for each i to j / reader to writer relationship
+jarg_matrix = np.zeros((len(topic_freq), len(topic_freq)))
+
+# calculate jargon distance and insert into matrix
+for i in topic_freq:
+    for j in topic_freq:
+        # same writer/reader combos can be ignored
+        if i == j:
+            jarg = 0
+        else:
+            jarg = 1 - (topic_shannon[i] / cross_entropy(topic_freq[i], topic_freq[j], corpus_freq))
+        jarg_matrix[i-1, j-1] = jarg
+        
+print(jarg_matrix)
